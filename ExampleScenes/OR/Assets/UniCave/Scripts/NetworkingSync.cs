@@ -22,11 +22,26 @@ public class NetworkingSync : MonoBehaviour {
         machineName = System.Environment.MachineName;
         if (machineName == MasterTrackingData.HeadNodeMachineName)
         {
-            Debug.Log("Initializing server on " + machineName);
-            Network.InitializeServer(numSlaveNodes, port, false);
-        } else{
-            Network.Connect(headNodeIP, port);
-            Debug.Log(machineName + " connecting");
+            NetworkConnectionError e = Network.InitializeServer(numSlaveNodes, port, false);
+            if(e == NetworkConnectionError.NoError)
+            {
+                Debug.Log("Initializing server on " + machineName);
+            }
+            else 
+            {
+                Debug.Log("Couldn't initialize server on " + machineName);
+            }
+        } else
+        {
+            NetworkConnectionError e = Network.Connect(headNodeIP, port);
+            if (e == NetworkConnectionError.NoError)
+            {
+                Debug.Log(machineName + " connected to server successfully");
+            }
+            else 
+            {
+                Debug.Log(machineName + " couldn't connect : " + e.ToString());
+            }
 		}
 
         Time.fixedDeltaTime = 0.05f;
@@ -51,6 +66,12 @@ public class NetworkingSync : MonoBehaviour {
                 GetComponent<NetworkView>().RPC("sendKeys", RPCMode.Others, Input.inputString);
             }
 
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                GetComponent<NetworkView>().RPC("quitApplication", RPCMode.Others);
+                Application.Quit();
+            }
+
             if (!syncedRandomSeed && frameCount > 500)
             {
                 GetComponent<NetworkView>().RPC("syncRandomSeed", RPCMode.Others, UnityEngine.Random.seed);
@@ -66,41 +87,12 @@ public class NetworkingSync : MonoBehaviour {
 
             frameCount++;
         }
-        /*else 
-        {
-            if (lastTime == 0.0f)
-            {
-                lastTime = headTime;
-            }
-            else
-            {
-                float ourTime = Time.time;
-                //time diff is the time between syncs
-                float timeDiff = headTime - lastTime;
-                if (timeDiff > 0.0f)
-                {
-                    //global time is the head node's time...
-                    float scale = ((headTime - ourTime) + timeDiff) / timeDiff;
+    }
 
-                    //float scale = (1.0f + ((globalTime - ourTime) + Time.deltaTime)) / (Time.deltaTime + 1.0f);
-                    //float scale = ((globalTime - ourTime) + Time.unscaledDeltaTime) / Time.unscaledDeltaTime;
-
-                    lastTime = headTime;
-
-                    if (scale < 0.0f)
-                    {
-                        scale = 0.001f;
-                    }
-                    else if (scale > 100.0f)
-                    {
-                        scale = 100.0f;
-                    }
-
-                    myTimeScale = Mathf.Lerp(myTimeScale, scale, Time.deltaTime);
-                    Time.timeScale = myTimeScale;// scale;// myTimeScale;
-                }
-            }
-        }*/
+    [RPC]
+    void quitApplication()
+    {
+        Application.Quit();
     }
 
     [RPC]
