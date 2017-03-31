@@ -1,9 +1,20 @@
-﻿using UnityEngine;
-using System.Collections;
-
-//Copyright Living Environments Laboratory - University of Wisconsin - Madison
+﻿//MIT License
+//Copyright 2016-Present 
 //Ross Tredinnick
 //Brady Boettcher
+//Living Environments Laboratory
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), 
+//to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, 
+//sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+//The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+//INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+//IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+//TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+using UnityEngine;
+using System.Collections;
 
 public class NetworkingSync : MonoBehaviour {
 
@@ -17,18 +28,18 @@ public class NetworkingSync : MonoBehaviour {
     private float headTime = 0.0f;
     private bool syncedRandomSeed = false;
     private int frameCount = 0;
-	
+
 	void Start () {
         machineName = System.Environment.MachineName;
         if (machineName == MasterTrackingData.HeadNodeMachineName)
         {
-            Debug.Log("Initializing server on " + machineName);
             Network.InitializeServer(numSlaveNodes, port, false);
-        } else{
+        }
+        else
+        {
             Network.Connect(headNodeIP, port);
-            Debug.Log(machineName + " connecting");
 		}
-
+        
         Time.fixedDeltaTime = 0.05f;
         Network.sendRate = networkUpdatesPerSecond;
 
@@ -42,21 +53,57 @@ public class NetworkingSync : MonoBehaviour {
         }
 	}
 
+    void OnServerInitialized()
+    {
+        Debug.Log("Server initialized and ready on " + System.Environment.MachineName);
+    }
+    
+    void OnConnectedToServer()
+    {
+        Debug.Log(System.Environment.MachineName + " successfully connected to " + MasterTrackingData.HeadNodeMachineName);
+    }
+
+    void OnFailedToConnect(NetworkConnectionError error)
+    {
+        Debug.Log("Could not connect to server on " + MasterTrackingData.HeadNodeMachineName + ": " + error);
+    }
+
+    void OnDisconnectedFromServer(NetworkDisconnection info)
+    {
+        if (Network.isServer)
+            Debug.Log("Local server connection disconnected");
+        else
+            if (info == NetworkDisconnection.LostConnection)
+                Debug.Log("Lost connection to the server");
+        else
+            Debug.Log("Successfully diconnected from the server");
+    }
+
     void Update()
     {
         if (System.Environment.MachineName == MasterTrackingData.HeadNodeMachineName)
         {
-            if(Input.inputString.Length > 0)
+            if (Input.inputString.Length > 0)
             {
                 GetComponent<NetworkView>().RPC("sendKeys", RPCMode.Others, Input.inputString);
             }
 
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                GetComponent<NetworkView>().RPC("quitApplication", RPCMode.Others);
+                Application.Quit();
+            }
+
             if (!syncedRandomSeed && frameCount > 500)
             {
-                GetComponent<NetworkView>().RPC("syncRandomSeed", RPCMode.Others, UnityEngine.Random.seed);
-                syncedRandomSeed = true;
+                //don't sync this until all connections have occurred.
+                if (Network.connections.Length == numSlaveNodes)
+                {
+                    GetComponent<NetworkView>().RPC("syncRandomSeed", RPCMode.Others, UnityEngine.Random.seed);
+                    syncedRandomSeed = true;
+                }
             }
-            
+
             float t = Time.time;
             if (t - lastTime > 0.1)
             {
@@ -66,41 +113,12 @@ public class NetworkingSync : MonoBehaviour {
 
             frameCount++;
         }
-        /*else 
-        {
-            if (lastTime == 0.0f)
-            {
-                lastTime = headTime;
-            }
-            else
-            {
-                float ourTime = Time.time;
-                //time diff is the time between syncs
-                float timeDiff = headTime - lastTime;
-                if (timeDiff > 0.0f)
-                {
-                    //global time is the head node's time...
-                    float scale = ((headTime - ourTime) + timeDiff) / timeDiff;
+    }
 
-                    //float scale = (1.0f + ((globalTime - ourTime) + Time.deltaTime)) / (Time.deltaTime + 1.0f);
-                    //float scale = ((globalTime - ourTime) + Time.unscaledDeltaTime) / Time.unscaledDeltaTime;
-
-                    lastTime = headTime;
-
-                    if (scale < 0.0f)
-                    {
-                        scale = 0.001f;
-                    }
-                    else if (scale > 100.0f)
-                    {
-                        scale = 100.0f;
-                    }
-
-                    myTimeScale = Mathf.Lerp(myTimeScale, scale, Time.deltaTime);
-                    Time.timeScale = myTimeScale;// scale;// myTimeScale;
-                }
-            }
-        }*/
+    [RPC]
+    void quitApplication()
+    {
+        Application.Quit();
     }
 
     [RPC]
