@@ -34,6 +34,7 @@ public class VRPNInput : MonoBehaviour
     public float movementSpeed = 0.01f;
     public float rotationSpeed = 5.0f;
     public double deadZone = 0.5;
+    public bool pressed = false;
     public bool restrictVerticalMovement = true;
 
     public GameObject holder;
@@ -106,6 +107,16 @@ public class VRPNInput : MonoBehaviour
         {
             for(int i = 0; i < numButtons; ++i)
             {
+                //just for survival shooter...
+                if (i == 5)
+                {
+                    if (VRPN.vrpnButton(trackerAddress, 5) != pressed)
+                    {
+                        pressed = VRPN.vrpnButton(trackerAddress, 5);
+                        GetComponent<NetworkView>().RPC("sendTrigger", RPCMode.Others, pressed);
+                    }
+                }
+
                 if (VRPN.vrpnButton(trackerAddress, i))
                 {
                     if (debugOutput)
@@ -118,6 +129,13 @@ public class VRPNInput : MonoBehaviour
            
             yield return null;
         }
+    }
+
+    [RPC]
+    void sendTrigger(bool isPressed)
+    {
+        //this will be received on the slave end..
+        pressed = isPressed;
     }
 
     private IEnumerator Analog()
